@@ -57,6 +57,39 @@ You can verify the extraction functionality directly from the command line:
 uv run run_server.py test --url "https://example.com"
 ```
 
+## Desktop Client Integration
+
+### Claude Desktop
+
+To use WebSurfer MCP with Claude Desktop, add the following configuration to your `claude_desktop_config.json` file.
+
+**Path locations:**
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+**Configuration:**
+
+Replace `/path/to/websurfer-mcp` with the absolute path to your cloned repository.
+
+```json
+{
+  "mcpServers": {
+    "websurfer": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/websurfer-mcp",
+        "run",
+        "run_server.py",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+After updating the configuration, restart Claude Desktop to enable the `search_url` tool.
+
 ## Configuration
 
 The server can be configured using the following environment variables:
