@@ -127,7 +127,7 @@ class TestURLValidator(unittest.TestCase):
             with self.subTest(url=url):
                 result = self.validator.validate(url)
                 self.assertFalse(result.is_valid)
-                self.assertIn("private IP", result.error_message)
+                self.assertIn("private or reserved IP ranges", result.error_message)
 
     def test_url_length_limit(self):
         """Test validation rejects URLs that are too long."""

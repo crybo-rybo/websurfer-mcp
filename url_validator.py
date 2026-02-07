@@ -3,6 +3,7 @@ URL validation utilities for the MCP URL Search Server.
 """
 
 import re
+import ipaddress
 import validators
 from urllib.parse import urlparse
 from dataclasses import dataclass
@@ -22,21 +23,11 @@ class URLValidator:
         # Blocked schemes for security
         self.blocked_schemes = {'file', 'ftp', 'sftp', 'data', 'javascript'}
         
-        # Blocked domains (local/private networks)
+        # Blocked domains (explicit list)
         self.blocked_domains = {
             'localhost',
-            '127.0.0.1',
-            '0.0.0.0',
-            '::1'
+            'local'
         }
-        
-        # Blocked IP ranges (private networks)
-        self.blocked_ip_patterns = [
-            r'^10\.',                    # 10.0.0.0/8
-            r'^172\.(1[6-9]|2[0-9]|3[01])\.',  # 172.16.0.0/12
-            r'^192\.168\.',              # 192.168.0.0/16
-            r'^169\.254\.',              # 169.254.0.0/16 (link-local)
-        ]
     
     def validate(self, url: str) -> ValidationResult:
         """
@@ -82,37 +73,42 @@ class URLValidator:
             )
         
         # Check scheme
-        if parsed.scheme.lower() not in {'http', 'https'}:
-            if parsed.scheme.lower() in self.blocked_schemes:
+        scheme = parsed.scheme.lower()
+        if scheme not in {'http', 'https'}:
+            if scheme in self.blocked_schemes:
                 return ValidationResult(
                     is_valid=False,
-                    error_message=f"Blocked scheme: {parsed.scheme}"
+                    error_message=f"Blocked scheme: {scheme}"
                 )
             else:
                 return ValidationResult(
                     is_valid=False,
-                    error_message=f"Unsupported scheme: {parsed.scheme}. Only HTTP and HTTPS are allowed."
+                    error_message=f"Unsupported scheme: {scheme}. Only HTTP and HTTPS are allowed."
                 )
         
-        # Check for blocked domains
+        # Check for blocked domains and IP ranges
         hostname = parsed.hostname
         if hostname:
             hostname_lower = hostname.lower()
             
-            # Check blocked domains
-            if hostname_lower in self.blocked_domains:
+            # 1. Check explicit blocked domains
+            if hostname_lower in self.blocked_domains or hostname_lower.endswith('.local'):
                 return ValidationResult(
                     is_valid=False,
                     error_message=f"Access to {hostname} is not allowed"
                 )
             
-            # Check blocked IP ranges
-            for pattern in self.blocked_ip_patterns:
-                if re.match(pattern, hostname_lower):
+            # 2. Check if hostname is an IP address and validate it
+            try:
+                ip = ipaddress.ip_address(hostname_lower)
+                if self._is_blocked_ip(ip):
                     return ValidationResult(
                         is_valid=False,
-                        error_message=f"Access to private IP ranges is not allowed"
+                        error_message="Access to private or reserved IP ranges is not allowed"
                     )
+            except ValueError:
+                # Not an IP address, which is fine (it's a domain name)
+                pass
         
         # Check URL length
         if len(normalized_url) > 2048:
@@ -125,6 +121,18 @@ class URLValidator:
             is_valid=True,
             normalized_url=normalized_url
         )
+    
+    def _is_blocked_ip(self, ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+        """Check if an IP address should be blocked."""
+        return (
+            ip.is_loopback or 
+            ip.is_private or 
+            ip.is_link_local or 
+            ip.is_multicast or 
+            ip.is_reserved or
+            ip.is_unspecified
+        )
+
     
     def _normalize_url(self, url: str) -> str:
         """

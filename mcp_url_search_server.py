@@ -45,7 +45,7 @@ class MCPURLSearchServer:
     async def _get_extractor(self) -> TextExtractor:
         """Get or create a text extractor instance."""
         if self.text_extractor is None:
-            self.text_extractor = TextExtractor()
+            self.text_extractor = TextExtractor(config=self.config)
         return self.text_extractor
     
     async def _cleanup(self):

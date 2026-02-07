@@ -31,7 +31,7 @@ class TestTextExtractor(unittest.TestCase):
         # Fill up the rate limit
         import time
         current_time = time.time()
-        self.extractor.request_times = [current_time] * self.extractor.max_requests_per_minute
+        self.extractor.request_times = [current_time] * self.extractor.config.rate_limit_requests
         
         # Should now fail rate limit check
         self.assertFalse(self.extractor._check_rate_limit())
@@ -110,7 +110,7 @@ class TestTextExtractor(unittest.TestCase):
             # Fill rate limit
             import time
             current_time = time.time()
-            extractor.request_times = [current_time] * extractor.max_requests_per_minute
+            extractor.request_times = [current_time] * extractor.config.rate_limit_requests
             
             result = await extractor.extract_text("https://example.com")
             
@@ -180,13 +180,20 @@ class TestTextExtractor(unittest.TestCase):
     @patch('aiohttp.ClientSession.get')
     async def test_extract_text_content_too_large(self, mock_get):
         """Test extraction rejects content that's too large."""
-        # Mock response with large content-length
+        # Mock response
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.headers = {
-            'content-type': 'text/html',
-            'content-length': str(15 * 1024 * 1024)  # 15MB > 10MB limit
+            'content-type': 'text/html'
         }
+        
+        # Mock streaming content that exceeds limit
+        async def mock_iter_any():
+            yield b'a' * (11 * 1024 * 1024)  # 11MB
+            
+        # Ensure iter_any is NOT a coroutine, but returns an async iterator
+        mock_response.content.iter_any = MagicMock(return_value=mock_iter_any())
+        
         mock_get.return_value.__aenter__.return_value = mock_response
         
         result = await self.extractor.extract_text("https://example.com/large.html")
@@ -201,7 +208,16 @@ class TestTextExtractor(unittest.TestCase):
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.headers = {'content-type': 'text/html'}
-        mock_response.text.return_value = '<html><head><title>Test</title></head><body><p>Hello World</p></body></html>'
+        mock_response.charset = 'utf-8'
+        
+        # Mock streaming content
+        content = b'<html><head><title>Test</title></head><body><p>Hello World</p></body></html>'
+        
+        async def mock_iter_any():
+            yield content
+            
+        mock_response.content.iter_any = MagicMock(return_value=mock_iter_any())
+        
         mock_get.return_value.__aenter__.return_value = mock_response
         
         result = await self.extractor.extract_text("https://example.com")
@@ -228,12 +244,14 @@ class TestTextExtractor(unittest.TestCase):
         """Test extraction handles network errors."""
         import aiohttp
         # Mock network error
-        mock_get.side_effect = aiohttp.ClientError("Connection failed")
+        mock_get.side_effect = aiohttp.ClientConnectorError(
+            MagicMock(), MagicMock(errno=1)
+        )
         
         result = await self.extractor.extract_text("https://unreachable.example.com")
         
         self.assertFalse(result.success)
-        self.assertIn("Network error", result.error_message)
+        self.assertIn("Connection error", result.error_message)
 
     @patch('aiohttp.ClientSession.get')
     async def test_extract_text_unicode_decode_error(self, mock_get):
@@ -242,13 +260,21 @@ class TestTextExtractor(unittest.TestCase):
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.headers = {'content-type': 'text/html'}
-        mock_response.text.side_effect = UnicodeDecodeError('utf-8', b'', 0, 1, 'invalid')
+        mock_response.charset = 'utf-8'
+        
+        # Mock streaming content with invalid bytes but some valid HTML
+        async def mock_iter_any():
+            yield b'<html><body><p>Valid text ' + b'\xff\xfe\xfd' + b'</p></body></html>'
+            
+        mock_response.content.iter_any = MagicMock(return_value=mock_iter_any())
+        
         mock_get.return_value.__aenter__.return_value = mock_response
         
         result = await self.extractor.extract_text("https://example.com")
         
-        self.assertFalse(result.success)
-        self.assertIn("Failed to decode content", result.error_message)
+        # We use errors='replace' so it should succeed
+        self.assertTrue(result.success)
+        self.assertIn("Valid text", result.text_content)
 
 
 # Helper to run async tests

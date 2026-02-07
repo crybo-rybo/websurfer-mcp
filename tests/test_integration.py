@@ -95,7 +95,7 @@ class TestMCPURLSearchIntegration(unittest.TestCase):
         
         validation_result = self.validator.validate(private_ip_url)
         self.assertFalse(validation_result.is_valid)
-        self.assertIn("private IP", validation_result.error_message)
+        self.assertIn("private or reserved IP ranges", validation_result.error_message)
 
     async def test_html_content_extraction(self):
         """Test HTML content extraction (matches manual test with httpbin.org/html)."""
@@ -149,7 +149,7 @@ class TestMCPURLSearchIntegration(unittest.TestCase):
         # Simulate rate limit exceeded
         import time
         current_time = time.time()
-        self.extractor.request_times = [current_time] * self.extractor.max_requests_per_minute
+        self.extractor.request_times = [current_time] * self.extractor.config.rate_limit_requests
         
         # Should now fail
         self.assertFalse(self.extractor._check_rate_limit())

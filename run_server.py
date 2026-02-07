@@ -14,6 +14,7 @@ from typing import Dict, Any
 from mcp_url_search_server import MCPURLSearchServer
 from url_validator import URLValidator
 from text_extractor import TextExtractor
+from config import Config
 
 def setup_logging(level: str = "INFO"):
     """Setup logging configuration."""
@@ -51,7 +52,8 @@ async def test_url_search(url: str, timeout: int = 10) -> Dict[str, Any]:
         }
     
     # Test text extraction
-    async with TextExtractor() as extractor:
+    config = Config()
+    async with TextExtractor(config=config) as extractor:
         try:
             extraction_result = await extractor.extract_text(
                 validation_result.normalized_url or url,
