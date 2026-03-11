@@ -1,4 +1,18 @@
-# WebSurfer MCP
+<p align="center">
+  <img src="docs/images/websurfer_logo.png" alt="WebSurfer MCP logo" width="220">
+</p>
+
+<h1 align="center">WebSurfer MCP</h1>
+
+<p align="center">
+  <b>Securely fetch and extract clean text from the web for LLMs.</b><br/>
+  <sub>MCP Server &bull; Trafilatura-powered &bull; SSRF Protection</sub>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
+</p>
 
 WebSurfer is a Model Context Protocol (MCP) server designed to provide Large Language Models (LLMs) with secure and efficient access to web content. It enables AI assistants to fetch, parse, and extract clean text from web pages through a standardized interface.
 
