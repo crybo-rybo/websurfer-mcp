@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository uses a `src` layout. Application code lives in `src/websurfer_mcp/`: `server.py` wires the MCP tool, `extractor.py` handles fetching and text extraction, `url_validation.py` enforces URL safety rules, `config.py` manages runtime settings, and `cli.py` provides local entrypoints. Tests live in `tests/`, documentation assets live in `docs/images/`, and `run_tests.py` is the project’s built-in unittest runner.
+This repository uses a `src` layout. Application code lives in `src/websurfer_mcp/`: `server.py` wires the MCP tool, `extractor.py` handles fetching and text extraction, `networking.py` enforces DNS-level destination safety, `url_validation.py` validates user-facing URLs, `config.py` manages runtime settings, and `cli.py` provides local entrypoints. Tests live in `tests/`, documentation assets live in `docs/images/`, and `run_tests.py` is the project’s built-in unittest runner.
 
 ## Build, Test, and Development Commands
 Install dependencies with:
@@ -44,4 +44,4 @@ Tests live in `tests/test_*.py` and are written with `unittest`, while `pytest` 
 Recent commits use short, imperative subjects such as `Add logo to README.md` and `Optimize URL validation and text extraction logic`. Keep commits narrowly scoped and describe the user-visible change first. PRs should include a brief summary, the commands you ran, related issue links when available, and any configuration or documentation updates required by the change.
 
 ## Security & Configuration Tips
-Preserve the repository’s security posture: only allow `http`/`https`, keep SSRF protections intact, and do not relax content-length or timeout limits without tests. Runtime tuning belongs in environment variables such as `MCP_DEFAULT_TIMEOUT`, `MCP_MAX_TIMEOUT`, `MCP_USER_AGENT`, and `MCP_MAX_CONTENT_LENGTH`.
+Preserve the repository’s security posture: only allow `http`/`https`, keep SSRF protections intact, and do not relax content-length, redirect, or timeout limits without tests. Runtime tuning belongs in environment variables such as `MCP_DEFAULT_TIMEOUT`, `MCP_MAX_TIMEOUT`, `MCP_MAX_REDIRECTS`, `MCP_USER_AGENT`, and `MCP_MAX_CONTENT_LENGTH`.

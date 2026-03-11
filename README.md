@@ -18,9 +18,10 @@ WebSurfer is a Model Context Protocol (MCP) server designed to provide Large Lan
 
 ## Core Features
 
-- **Advanced URL Validation**: Implements strict security controls using the `ipaddress` module to block access to private, loopback, and reserved IP ranges (SSRF protection).
+- **Advanced URL Validation**: Implements strict security controls using the `ipaddress` module to block private, loopback, link-local, and reserved destinations before any fetch occurs.
 - **Optimized Content Extraction**: Utilizes `trafilatura` and `BeautifulSoup4` to extract high-quality, readable text from HTML, effectively removing boilerplate such as navigation, headers, and scripts.
 - **Resource Management**: Enforces strict content size limits and request timeouts to ensure system stability and performance.
+- **Redirect Safety**: Validates every redirect hop and refuses redirects to blocked schemes, localhost, private IP literals, or unsafe DNS targets.
 - **Rate Limiting**: Built-in request throttling to prevent service abuse and manage resource consumption.
 - **Robust Error Handling**: Provides granular feedback for network issues, HTTP errors, and content parsing failures.
 
@@ -32,6 +33,7 @@ websurfer-mcp/
 │   ├── cli.py
 │   ├── config.py
 │   ├── extractor.py
+│   ├── networking.py
 │   ├── server.py
 │   └── url_validation.py
 ├── tests/
@@ -44,6 +46,7 @@ Key runtime components:
 
 - `WebSurferServer`: MCP transport and tool registration.
 - `TextExtractor`: asynchronous HTTP fetching and readable-text extraction.
+- `SafeResolver`: DNS resolution guard that rejects private and reserved IP answers.
 - `URLValidator`: URL normalization and SSRF-focused validation.
 - `Config`: environment-driven runtime configuration.
 
@@ -136,6 +139,7 @@ The server can be configured using the following environment variables:
 |----------|---------|-------------|
 | `MCP_DEFAULT_TIMEOUT` | `10` | Default request timeout in seconds. |
 | `MCP_MAX_TIMEOUT` | `60` | Maximum allowed timeout in seconds. |
+| `MCP_MAX_REDIRECTS` | `10` | Maximum number of redirect hops to follow. |
 | `MCP_USER_AGENT` | `websurfer-mcp/0.2.0` | User-Agent string for outgoing requests. |
 | `MCP_MAX_CONTENT_LENGTH` | `10485760` | Maximum content size in bytes (default 10MB). |
 
@@ -168,6 +172,8 @@ WebSurfer MCP is designed with security as a primary concern. It explicitly bloc
 - Loopback addresses (e.g., 127.0.0.1, ::1)
 - Link-local and reserved addresses
 - Non-HTTP/HTTPS schemes (e.g., file://, ftp://, javascript:)
+- Redirect hops that resolve to blocked destinations
+- DNS answers that resolve public-looking hostnames to private or reserved IPs
 
 ---
 Developed with the [Model Context Protocol](https://modelcontextprotocol.io/).

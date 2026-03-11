@@ -34,6 +34,12 @@ class TestURLValidator(unittest.TestCase):
         self.assertTrue(result.is_valid)
         self.assertEqual(result.normalized_url, "https://example.com")
 
+    def test_url_normalization_preserves_host_ports(self):
+        """Test that host:port inputs without a scheme normalize to HTTPS URLs."""
+        result = self.validator.validate("example.com:443/path")
+        self.assertTrue(result.is_valid)
+        self.assertEqual(result.normalized_url, "https://example.com:443/path")
+
     def test_invalid_url_format(self):
         """Test validation rejects invalid URL formats."""
         invalid_urls = [
@@ -91,7 +97,13 @@ class TestURLValidator(unittest.TestCase):
 
     def test_blocked_localhost_domains(self):
         """Test validation blocks localhost domains."""
-        localhost_urls = ["http://localhost", "https://127.0.0.1", "http://0.0.0.0", "https://::1"]
+        localhost_urls = [
+            "http://localhost",
+            "localhost:8080",
+            "https://127.0.0.1",
+            "http://0.0.0.0",
+            "https://::1",
+        ]
 
         for url in localhost_urls:
             with self.subTest(url=url):
@@ -118,6 +130,12 @@ class TestURLValidator(unittest.TestCase):
         result = self.validator.validate("https://example.com:bad-port")
         self.assertFalse(result.is_valid)
         self.assertIn("Invalid URL format", result.error_message)
+
+    def test_validate_resolved_ip_rejects_private_ip(self):
+        """Test that private DNS answers are rejected."""
+        result = self.validator.validate_resolved_ip("example.com", "127.0.0.1")
+        self.assertFalse(result.is_valid)
+        self.assertIn("127.0.0.1", result.error_message)
 
     def test_url_length_limit(self):
         """Test validation rejects URLs that are too long."""

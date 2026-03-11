@@ -16,6 +16,7 @@ class TestConfig(unittest.TestCase):
 
         self.assertEqual(config.default_timeout, 10)
         self.assertEqual(config.max_timeout, 60)
+        self.assertEqual(config.max_redirects, 10)
         self.assertEqual(config.user_agent, "websurfer-mcp/0.2.0")
         self.assertEqual(config.max_content_length, 10 * 1024 * 1024)
         self.assertEqual(config.rate_limit_requests, 100)
@@ -28,6 +29,7 @@ class TestConfig(unittest.TestCase):
         {
             "MCP_DEFAULT_TIMEOUT": "15",
             "MCP_MAX_TIMEOUT": "120",
+            "MCP_MAX_REDIRECTS": "7",
             "MCP_USER_AGENT": "Custom-Agent/2.0.0",
             "MCP_MAX_CONTENT_LENGTH": "5242880",
         },
@@ -38,6 +40,7 @@ class TestConfig(unittest.TestCase):
 
         self.assertEqual(config.default_timeout, 15)
         self.assertEqual(config.max_timeout, 120)
+        self.assertEqual(config.max_redirects, 7)
         self.assertEqual(config.user_agent, "Custom-Agent/2.0.0")
         self.assertEqual(config.max_content_length, 5242880)
 
@@ -69,6 +72,13 @@ class TestConfig(unittest.TestCase):
 
         self.assertEqual(config.default_timeout, 10)
         self.assertEqual(config.max_timeout, 60)
+
+    @patch.dict(os.environ, {"MCP_MAX_REDIRECTS": "-5"})
+    def test_negative_redirect_limit_is_clamped(self):
+        """Test that the redirect limit cannot become negative."""
+        config = Config()
+
+        self.assertEqual(config.max_redirects, 0)
 
     def test_content_types_immutable(self):
         """Test that supported content types are immutable."""

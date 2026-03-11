@@ -71,6 +71,7 @@ def main() -> int:
         modules = [
             "test_config - configuration management",
             "test_extractor - content fetching and extraction",
+            "test_networking - DNS and destination safety checks",
             "test_server - MCP server orchestration",
             "test_url_validation - URL validation rules",
         ]

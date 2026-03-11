@@ -5,8 +5,10 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
+from yarl import URL
 
 from websurfer_mcp.extractor import TextExtractor
+from websurfer_mcp.networking import UnsafeAddressError
 
 
 def _iter_chunks(*chunks: bytes):
@@ -23,13 +25,22 @@ def _mock_response(
     headers: dict[str, str] | None = None,
     charset: str = "utf-8",
     chunks: tuple[bytes, ...] = (b"",),
+    url: str = "https://example.com",
 ) -> AsyncMock:
     response = AsyncMock()
     response.status = status
     response.headers = headers or {}
     response.charset = charset
     response.content.iter_any = MagicMock(return_value=_iter_chunks(*chunks))
+    response.url = URL(url)
     return response
+
+
+def _mock_request_context(response: AsyncMock) -> AsyncMock:
+    context = AsyncMock()
+    context.__aenter__.return_value = response
+    context.__aexit__.return_value = False
+    return context
 
 
 class TestTextExtractor(unittest.TestCase):
@@ -131,6 +142,7 @@ class TestTextExtractorAsync(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.success)
         self.assertEqual(result.error_message, "Page not found (404)")
         self.assertEqual(result.status_code, 404)
+        self.assertFalse(mock_get.call_args.kwargs["allow_redirects"])
 
     @patch("aiohttp.ClientSession.get")
     async def test_extract_text_403_error(self, mock_get):
@@ -200,6 +212,7 @@ class TestTextExtractorAsync(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Hello World", result.text_content)
         self.assertEqual(result.title, "Test")
         self.assertEqual(result.status_code, 200)
+        self.assertFalse(mock_get.call_args.kwargs["allow_redirects"])
 
     @patch("aiohttp.ClientSession.get")
     async def test_extract_text_timeout(self, mock_get):
@@ -227,6 +240,67 @@ class TestTextExtractorAsync(unittest.IsolatedAsyncioTestCase):
         result = await self.extractor.extract_text("https://example.com")
         self.assertTrue(result.success)
         self.assertIn("Valid text", result.text_content)
+
+    @patch("aiohttp.ClientSession.get")
+    async def test_extract_text_rejects_invalid_initial_url(self, mock_get):
+        result = await self.extractor.extract_text("localhost:8080")
+
+        self.assertFalse(result.success)
+        self.assertIn("Invalid URL", result.error_message)
+        mock_get.assert_not_called()
+
+    @patch("aiohttp.ClientSession.get")
+    async def test_extract_text_follows_safe_redirects(self, mock_get):
+        redirect_response = _mock_response(
+            status=302,
+            headers={"location": "/final"},
+            url="https://example.com/start",
+        )
+        final_response = _mock_response(
+            status=200,
+            headers={"content-type": "text/html"},
+            chunks=(b"<html><body><p>Redirected</p></body></html>",),
+            url="https://example.com/final",
+        )
+        mock_get.side_effect = [
+            _mock_request_context(redirect_response),
+            _mock_request_context(final_response),
+        ]
+
+        result = await self.extractor.extract_text("https://example.com/start")
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.url, "https://example.com/final")
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(mock_get.call_args_list[1].args[0], "https://example.com/final")
+        for call in mock_get.call_args_list:
+            self.assertFalse(call.kwargs["allow_redirects"])
+
+    @patch("aiohttp.ClientSession.get")
+    async def test_extract_text_blocks_unsafe_redirect_target(self, mock_get):
+        redirect_response = _mock_response(
+            status=302,
+            headers={"location": "http://127.0.0.1/private"},
+            url="https://example.com/start",
+        )
+        mock_get.side_effect = [_mock_request_context(redirect_response)]
+
+        result = await self.extractor.extract_text("https://example.com/start")
+
+        self.assertFalse(result.success)
+        self.assertIn("Redirect target blocked", result.error_message)
+        self.assertEqual(mock_get.call_count, 1)
+
+    @patch("aiohttp.ClientSession.get")
+    async def test_extract_text_handles_unsafe_resolver_error(self, mock_get):
+        mock_get.side_effect = UnsafeAddressError(
+            "Access to resolved address 127.0.0.1 for example.com is not allowed"
+        )
+
+        result = await self.extractor.extract_text("https://example.com")
+
+        self.assertFalse(result.success)
+        self.assertIn("127.0.0.1", result.error_message)
 
 
 if __name__ == "__main__":

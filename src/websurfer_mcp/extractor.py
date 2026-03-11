@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import socket
 import time
 from dataclasses import dataclass
 
 import aiohttp
 import trafilatura
 from bs4 import BeautifulSoup
+from yarl import URL
 
 from .config import Config
+from .networking import SafeResolver, UnsafeAddressError
+from .url_validation import URLValidator
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +36,15 @@ class ExtractionResult:
 class TextExtractor:
     """Fetch remote content and extract clean text for LLM consumption."""
 
-    def __init__(self, config: Config | None = None) -> None:
+    redirect_statuses = frozenset({301, 302, 303, 307, 308})
+
+    def __init__(
+        self,
+        config: Config | None = None,
+        validator: URLValidator | None = None,
+    ) -> None:
         self.config = config or Config()
+        self.validator = validator or URLValidator()
         self.session: aiohttp.ClientSession | None = None
         self._session_created = False
         self.request_times: list[float] = []
@@ -47,6 +58,8 @@ class TextExtractor:
         connector = aiohttp.TCPConnector(
             limit=10,
             limit_per_host=5,
+            family=socket.AF_UNSPEC,
+            resolver=SafeResolver(self.validator),
             ttl_dns_cache=300,
             use_dns_cache=True,
         )
@@ -63,11 +76,20 @@ class TextExtractor:
         """Fetch a URL and extract readable text from it."""
 
         effective_timeout = self._normalize_timeout(timeout)
+        validation_result = self.validator.validate(url)
+        if not validation_result.is_valid:
+            return ExtractionResult(
+                success=False,
+                error_message=f"Invalid URL - {validation_result.error_message}",
+                url=url,
+            )
+
+        current_url = validation_result.normalized_url or url
         if not self._check_rate_limit():
             return ExtractionResult(
                 success=False,
                 error_message="Rate limit exceeded. Please try again later.",
-                url=url,
+                url=current_url,
             )
 
         self.request_times.append(time.monotonic())
@@ -76,36 +98,72 @@ class TextExtractor:
             await self._ensure_session(effective_timeout)
             assert self.session is not None
 
-            async with self.session.get(
-                url,
-                headers=self._build_headers(user_agent),
-                timeout=effective_timeout,
-            ) as response:
-                return await self._handle_response(response, url)
+            redirects_followed = 0
+            visited_urls: set[str] = set()
+            while True:
+                if current_url in visited_urls:
+                    return ExtractionResult(
+                        success=False,
+                        error_message="Redirect loop detected",
+                        url=current_url,
+                    )
+                visited_urls.add(current_url)
+
+                async with self.session.get(
+                    current_url,
+                    headers=self._build_headers(user_agent),
+                    timeout=effective_timeout,
+                    allow_redirects=False,
+                ) as response:
+                    redirect_result = self._get_redirect_target(response)
+                    if isinstance(redirect_result, ExtractionResult):
+                        return redirect_result
+
+                    if redirect_result is not None:
+                        if redirects_followed >= self.config.max_redirects:
+                            return ExtractionResult(
+                                success=False,
+                                error_message=(
+                                    f"Too many redirects (max {self.config.max_redirects})"
+                                ),
+                                status_code=response.status,
+                                url=current_url,
+                            )
+                        current_url = redirect_result
+                        redirects_followed += 1
+                        continue
+
+                    return await self._handle_response(response, current_url)
+        except UnsafeAddressError as exc:
+            return ExtractionResult(
+                success=False,
+                error_message=str(exc),
+                url=current_url,
+            )
         except TimeoutError:
             return ExtractionResult(
                 success=False,
                 error_message=f"Request timed out after {effective_timeout} seconds",
-                url=url,
+                url=current_url,
             )
         except aiohttp.ClientConnectorError as exc:
             return ExtractionResult(
                 success=False,
                 error_message=f"Connection error: {exc}",
-                url=url,
+                url=current_url,
             )
         except aiohttp.ClientError as exc:
             return ExtractionResult(
                 success=False,
                 error_message=f"Network error: {exc}",
-                url=url,
+                url=current_url,
             )
         except Exception as exc:
-            logger.exception("Unexpected error extracting text from %s", url)
+            logger.exception("Unexpected error extracting text from %s", current_url)
             return ExtractionResult(
                 success=False,
                 error_message=f"Unexpected error: {exc}",
-                url=url,
+                url=current_url,
             )
 
     async def _handle_response(
@@ -288,6 +346,44 @@ class TextExtractor:
             "DNT": "1",
             "Connection": "keep-alive",
         }
+
+    def _get_redirect_target(
+        self, response: aiohttp.ClientResponse
+    ) -> str | ExtractionResult | None:
+        """Validate and normalize the next redirect target, if any."""
+
+        if response.status not in self.redirect_statuses:
+            return None
+
+        location = response.headers.get("location")
+        if not location:
+            return ExtractionResult(
+                success=False,
+                error_message=f"Redirect response ({response.status}) missing Location header",
+                status_code=response.status,
+                url=str(response.url),
+            )
+
+        try:
+            redirect_url = str(response.url.join(URL(location)))
+        except ValueError as exc:
+            return ExtractionResult(
+                success=False,
+                error_message=f"Invalid redirect target: {exc}",
+                status_code=response.status,
+                url=str(response.url),
+            )
+
+        validation_result = self.validator.validate(redirect_url)
+        if not validation_result.is_valid:
+            return ExtractionResult(
+                success=False,
+                error_message=f"Redirect target blocked: {validation_result.error_message}",
+                status_code=response.status,
+                url=str(response.url),
+            )
+
+        return validation_result.normalized_url or redirect_url
 
     def _normalize_timeout(self, timeout: int | None) -> int:
         """Clamp timeouts to a valid, configured range."""

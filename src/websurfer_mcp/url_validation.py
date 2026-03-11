@@ -103,6 +103,9 @@ class URLValidator:
         if not normalized_url:
             return ""
 
+        if self._looks_like_host_with_port(normalized_url):
+            return f"https://{normalized_url}"
+
         if SCHEME_RE.match(normalized_url):
             return normalized_url
 
@@ -110,6 +113,29 @@ class URLValidator:
             return f"https://{normalized_url}"
 
         return normalized_url
+
+    def validate_resolved_ip(self, hostname: str, resolved_ip: str) -> ValidationResult:
+        """Validate an IP address returned from DNS resolution."""
+
+        try:
+            ip_address = ipaddress.ip_address(resolved_ip)
+        except ValueError:
+            return ValidationResult(
+                is_valid=False,
+                error_message=(
+                    f"DNS resolution for {hostname} returned a non-IP host: {resolved_ip}"
+                ),
+            )
+
+        if self._is_blocked_ip(ip_address):
+            return ValidationResult(
+                is_valid=False,
+                error_message=(
+                    f"Access to resolved address {resolved_ip} for {hostname} is not allowed"
+                ),
+            )
+
+        return ValidationResult(is_valid=True)
 
     @staticmethod
     def _is_ip_address(hostname: str) -> bool:
@@ -145,3 +171,23 @@ class URLValidator:
             return False
 
         return not labels[-1].isdigit()
+
+    @staticmethod
+    def _looks_like_host_with_port(url: str) -> bool:
+        """Detect host:port inputs that should be normalized to HTTPS URLs."""
+
+        if "://" in url or url.startswith("/"):
+            return False
+
+        if url.startswith("["):
+            return "]:" in url
+
+        if ":" not in url:
+            return False
+
+        host, remainder = url.split(":", 1)
+        if not host or any(character in host for character in "/?#@"):
+            return False
+
+        port = remainder.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+        return port.isdigit()

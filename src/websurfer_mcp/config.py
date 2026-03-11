@@ -38,6 +38,7 @@ class Config:
 
     default_timeout: int = 10
     max_timeout: int = 60
+    max_redirects: int = 10
     user_agent: str = "websurfer-mcp/0.2.0"
     max_content_length: int = 10 * 1024 * 1024
     supported_content_types: tuple[str, ...] = DEFAULT_SUPPORTED_CONTENT_TYPES
@@ -49,6 +50,7 @@ class Config:
 
         self.default_timeout = _read_int_env("MCP_DEFAULT_TIMEOUT", self.default_timeout)
         self.max_timeout = _read_int_env("MCP_MAX_TIMEOUT", self.max_timeout)
+        self.max_redirects = _read_int_env("MCP_MAX_REDIRECTS", self.max_redirects)
         self.user_agent = os.getenv("MCP_USER_AGENT", self.user_agent)
         self.max_content_length = _read_int_env(
             "MCP_MAX_CONTENT_LENGTH",
@@ -57,6 +59,7 @@ class Config:
 
         self.max_timeout = max(self.max_timeout, 1)
         self.default_timeout = min(max(self.default_timeout, 1), self.max_timeout)
+        self.max_redirects = max(self.max_redirects, 0)
         self.max_content_length = max(self.max_content_length, 1)
         self.rate_limit_requests = max(self.rate_limit_requests, 1)
         self.rate_limit_window = max(self.rate_limit_window, 1)
