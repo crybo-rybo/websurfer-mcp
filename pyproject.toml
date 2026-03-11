@@ -1,13 +1,63 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
 [project]
 name = "websurfer-mcp"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "Securely fetch and extract clean web content for MCP clients and LLMs."
 readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "MIT" }
+keywords = ["llm", "mcp", "model-context-protocol", "trafilatura", "web"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "aiohttp>=3.12.13",
     "beautifulsoup4>=4.13.4",
     "mcp>=1.10.1",
     "trafilatura>=2.0.0",
-    "validators>=0.35.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/crybo-rybo/websurfer-mcp"
+Repository = "https://github.com/crybo-rybo/websurfer-mcp"
+
+[project.scripts]
+websurfer-mcp = "websurfer_mcp.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/websurfer_mcp"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["websurfer_mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "SIM", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

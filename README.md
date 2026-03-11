@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Securely fetch and extract clean text from the web for LLMs.</b><br/>
-  <sub>MCP Server &bull; Trafilatura-powered &bull; SSRF Protection</sub>
+  <sub>MCP Server &bull; src-layout Python package &bull; SSRF Protection</sub>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
 </p>
 
-WebSurfer is a Model Context Protocol (MCP) server designed to provide Large Language Models (LLMs) with secure and efficient access to web content. It enables AI assistants to fetch, parse, and extract clean text from web pages through a standardized interface.
+WebSurfer is a Model Context Protocol (MCP) server designed to provide Large Language Models (LLMs) with secure and efficient access to web content. The repository now uses a modern `src/websurfer_mcp` package layout with a dedicated CLI, deterministic tests, and repository-level tooling.
 
 ## Core Features
 
@@ -24,14 +24,28 @@ WebSurfer is a Model Context Protocol (MCP) server designed to provide Large Lan
 - **Rate Limiting**: Built-in request throttling to prevent service abuse and manage resource consumption.
 - **Robust Error Handling**: Provides granular feedback for network issues, HTTP errors, and content parsing failures.
 
-## System Architecture
+## Project Layout
 
-The project is composed of several specialized components:
+```text
+websurfer-mcp/
+├── src/websurfer_mcp/
+│   ├── cli.py
+│   ├── config.py
+│   ├── extractor.py
+│   ├── server.py
+│   └── url_validation.py
+├── tests/
+├── docs/images/
+├── pyproject.toml
+└── run_tests.py
+```
 
-- **MCPURLSearchServer**: The primary server implementation that handles the MCP lifecycle and tool registration.
-- **TextExtractor**: Manages asynchronous HTTP sessions and content parsing logic.
-- **URLValidator**: Performs security auditing and normalization on input URLs.
-- **Config**: Centralizes configuration management via environment variables.
+Key runtime components:
+
+- `WebSurferServer`: MCP transport and tool registration.
+- `TextExtractor`: asynchronous HTTP fetching and readable-text extraction.
+- `URLValidator`: URL normalization and SSRF-focused validation.
+- `Config`: environment-driven runtime configuration.
 
 ## Installation
 
@@ -48,9 +62,14 @@ The project is composed of several specialized components:
    cd websurfer-mcp
    ```
 
-2. **Install dependencies**:
+2. **Install runtime dependencies**:
    ```bash
    uv sync
+   ```
+
+3. **Install development tooling**:
+   ```bash
+   uv sync --group dev
    ```
 
 ## Usage
@@ -59,8 +78,11 @@ The project is composed of several specialized components:
 
 The server communicates via standard I/O (stdio) and is compatible with any MCP-compliant client.
 
+Use either the console script or the package module:
+
 ```bash
-uv run run_server.py serve
+uv run websurfer-mcp serve
+uv run python -m websurfer_mcp serve
 ```
 
 ### Manual Testing
@@ -68,7 +90,7 @@ uv run run_server.py serve
 You can verify the extraction functionality directly from the command line:
 
 ```bash
-uv run run_server.py test --url "https://example.com"
+uv run websurfer-mcp test --url "https://example.com"
 ```
 
 ## Desktop Client Integration
@@ -85,6 +107,8 @@ To use WebSurfer MCP with Claude Desktop, add the following configuration to you
 
 Replace `/path/to/websurfer-mcp` with the absolute path to your cloned repository.
 
+After updating the configuration, restart Claude Desktop to enable the `search_url` tool.
+
 ```json
 {
   "mcpServers": {
@@ -94,15 +118,15 @@ Replace `/path/to/websurfer-mcp` with the absolute path to your cloned repositor
         "--directory",
         "/path/to/websurfer-mcp",
         "run",
-        "run_server.py",
+        "python",
+        "-m",
+        "websurfer_mcp",
         "serve"
       ]
     }
   }
 }
 ```
-
-After updating the configuration, restart Claude Desktop to enable the `search_url` tool.
 
 ## Configuration
 
@@ -112,27 +136,29 @@ The server can be configured using the following environment variables:
 |----------|---------|-------------|
 | `MCP_DEFAULT_TIMEOUT` | `10` | Default request timeout in seconds. |
 | `MCP_MAX_TIMEOUT` | `60` | Maximum allowed timeout in seconds. |
-| `MCP_USER_AGENT` | `MCP-URL-Search-Server/1.0.0` | User-Agent string for outgoing requests. |
+| `MCP_USER_AGENT` | `websurfer-mcp/0.2.0` | User-Agent string for outgoing requests. |
 | `MCP_MAX_CONTENT_LENGTH` | `10485760` | Maximum content size in bytes (default 10MB). |
 
-## Testing
+## Development
 
-The project maintains a comprehensive test suite covering unit and integration scenarios.
-
-### Execute All Tests
+Run the test suite:
 
 ```bash
-uv run python -m unittest discover tests -v
+uv run pytest
+uv run python run_tests.py
 ```
 
-### Component Testing
+Run quality checks:
 
 ```bash
-# Integration tests
-uv run python -m unittest tests.test_integration -v
+uv run ruff check .
+uv run ruff format .
+```
 
-# URL validation tests
-uv run python -m unittest tests.test_url_validator -v
+Run a focused module:
+
+```bash
+uv run python run_tests.py --module test_server
 ```
 
 ## Security

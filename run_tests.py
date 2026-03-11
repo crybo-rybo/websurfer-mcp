@@ -1,170 +1,115 @@
 #!/usr/bin/env python3
-"""
-Test runner for the MCP URL Search Server.
-Provides a simple interface to run all tests or specific test modules.
-"""
+"""Unittest runner for the repository."""
 
+from __future__ import annotations
+
+import argparse
 import sys
 import unittest
-import argparse
-import os
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+SRC_ROOT = PROJECT_ROOT / "src"
 
 
-def discover_and_run_tests(test_pattern="test_*.py", verbosity=2, start_dir="tests"):
-    """
-    Discover and run tests with the given pattern.
-    
-    Args:
-        test_pattern: Pattern to match test files
-        verbosity: Test output verbosity level
-        start_dir: Directory to start test discovery
-        
-    Returns:
-        TestResult object
-    """
-    
-    # Add project root to Python path
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    
-    # Discover tests
-    loader = unittest.TestLoader()
-    suite = loader.discover(start_dir, pattern=test_pattern)
-    
-    # Run tests
-    runner = unittest.TextTestRunner(verbosity=verbosity, buffer=True)
-    result = runner.run(suite)
-    
-    return result
+def _bootstrap_path() -> None:
+    """Ensure the src-layout package can be imported during local test runs."""
+
+    src_root = str(SRC_ROOT)
+    if src_root not in sys.path:
+        sys.path.insert(0, src_root)
 
 
-def run_specific_test_module(module_name, verbosity=2):
-    """
-    Run a specific test module.
-    
-    Args:
-        module_name: Name of the test module (e.g., 'test_url_validator')
-        verbosity: Test output verbosity level
-        
-    Returns:
-        TestResult object
-    """
-    
-    # Add project root to Python path
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    
-    # Import and run specific module
-    module_path = f"tests.{module_name}"
-    suite = unittest.TestLoader().loadTestsFromName(module_path)
-    
-    runner = unittest.TextTestRunner(verbosity=verbosity, buffer=True)
-    result = runner.run(suite)
-    
-    return result
+def discover_and_run_tests(
+    test_pattern: str = "test_*.py",
+    verbosity: int = 2,
+    start_dir: str = "tests",
+) -> unittest.result.TestResult:
+    """Discover and run all matching tests."""
+
+    _bootstrap_path()
+    suite = unittest.TestLoader().discover(start_dir, pattern=test_pattern)
+    return unittest.TextTestRunner(verbosity=verbosity, buffer=True).run(suite)
 
 
-def main():
-    """Main entry point for the test runner."""
-    
-    parser = argparse.ArgumentParser(
-        description="Test runner for MCP URL Search Server"
-    )
-    
+def run_specific_test_module(
+    module_name: str,
+    verbosity: int = 2,
+) -> unittest.result.TestResult:
+    """Run a single named test module."""
+
+    _bootstrap_path()
+    suite = unittest.TestLoader().loadTestsFromName(f"tests.{module_name}")
+    return unittest.TextTestRunner(verbosity=verbosity, buffer=True).run(suite)
+
+
+def main() -> int:
+    """Main entrypoint for the test runner."""
+
+    parser = argparse.ArgumentParser(description="Run the WebSurfer MCP test suite.")
     parser.add_argument(
         "--module",
-        help="Run specific test module (e.g., test_url_validator, test_text_extractor, test_integration, test_config)"
+        help="Run a specific test module, for example: test_url_validation",
     )
-    
     parser.add_argument(
-        "--pattern", 
+        "--pattern",
         default="test_*.py",
-        help="Pattern to match test files (default: test_*.py)"
+        help="Pattern to match test files during discovery.",
     )
-    
     parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Increase test output verbosity"
+        "--verbose", "-v", action="store_true", help="Increase test output verbosity."
     )
-    
-    parser.add_argument(
-        "--quiet", "-q",
-        action="store_true", 
-        help="Decrease test output verbosity"
-    )
-    
-    parser.add_argument(
-        "--list",
-        action="store_true",
-        help="List available test modules"
-    )
-    
+    parser.add_argument("--quiet", "-q", action="store_true", help="Reduce test output verbosity.")
+    parser.add_argument("--list", action="store_true", help="List the supported test modules.")
+
     args = parser.parse_args()
-    
-    # Determine verbosity level
-    if args.quiet:
-        verbosity = 0
-    elif args.verbose:
-        verbosity = 3
-    else:
-        verbosity = 2
-    
-    # List available test modules
+
+    verbosity = 0 if args.quiet else 3 if args.verbose else 2
+
     if args.list:
         print("Available test modules:")
-        test_modules = [
-            "test_url_validator - URL validation functionality",
-            "test_text_extractor - Text extraction functionality", 
-            "test_integration - End-to-end integration tests",
-            "test_config - Configuration management"
+        modules = [
+            "test_config - configuration management",
+            "test_extractor - content fetching and extraction",
+            "test_server - MCP server orchestration",
+            "test_url_validation - URL validation rules",
         ]
-        for module in test_modules:
+        for module in modules:
             print(f"  - {module}")
-        return
-    
-    # Run tests
-    try:
-        if args.module:
-            print(f"Running tests for module: {args.module}")
-            result = run_specific_test_module(args.module, verbosity)
-        else:
-            print("Running all tests...")
-            result = discover_and_run_tests(args.pattern, verbosity)
-        
-        # Print summary
-        print(f"\n{'='*60}")
-        print("TEST SUMMARY")
-        print(f"{'='*60}")
-        print(f"Tests run: {result.testsRun}")
-        print(f"Failures: {len(result.failures)}")
-        print(f"Errors: {len(result.errors)}")
-        print(f"Skipped: {len(result.skipped)}")
-        
-        if result.failures:
-            print(f"\nFAILURES:")
-            for test, traceback in result.failures:
-                print(f"  - {test}")
-        
-        if result.errors:
-            print(f"\nERRORS:")
-            for test, traceback in result.errors:
-                print(f"  - {test}")
-        
-        # Exit with appropriate code
-        if result.failures or result.errors:
-            print(f"\nTests FAILED")
-            sys.exit(1)
-        else:
-            print(f"\nAll tests PASSED")
-            sys.exit(0)
-            
-    except Exception as e:
-        print(f"Error running tests: {e}")
-        sys.exit(1)
+        return 0
+
+    if args.module:
+        print(f"Running tests for module: {args.module}")
+        result = run_specific_test_module(args.module, verbosity)
+    else:
+        print("Running all tests...")
+        result = discover_and_run_tests(args.pattern, verbosity)
+
+    print(f"\n{'=' * 60}")
+    print("TEST SUMMARY")
+    print(f"{'=' * 60}")
+    print(f"Tests run: {result.testsRun}")
+    print(f"Failures: {len(result.failures)}")
+    print(f"Errors: {len(result.errors)}")
+    print(f"Skipped: {len(result.skipped)}")
+
+    if result.failures:
+        print("\nFAILURES:")
+        for test, _traceback in result.failures:
+            print(f"  - {test}")
+
+    if result.errors:
+        print("\nERRORS:")
+        for test, _traceback in result.errors:
+            print(f"  - {test}")
+
+    if result.failures or result.errors:
+        print("\nTests FAILED")
+        return 1
+
+    print("\nAll tests PASSED")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
