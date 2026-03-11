@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/websurfer_logo_trimmed.png" alt="WebSurfer MCP logo" width="220">
+  <img src="docs/images/websurfer_logo.png" alt="WebSurfer MCP logo" width="220">
 </p>
 
 <h1 align="center">WebSurfer MCP</h1>
