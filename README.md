@@ -149,7 +149,6 @@ Run the test suite:
 
 ```bash
 uv run pytest
-uv run python run_tests.py
 ```
 
 Run quality checks:
