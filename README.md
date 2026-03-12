@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
 </p>
 
-WebSurfer is a Model Context Protocol (MCP) server designed to provide Large Language Models (LLMs) with secure and efficient access to web content. The repository now uses a modern `src/websurfer_mcp` package layout with a dedicated CLI, deterministic tests, and repository-level tooling.
+WebSurfer is a Model Context Protocol (MCP) server designed to provide Large Language Models (LLMs) with secure and efficient access to web content.
 
 ## Core Features
 
